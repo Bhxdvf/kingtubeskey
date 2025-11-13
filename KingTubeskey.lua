@@ -459,101 +459,140 @@ frame.Visible=guiVisible
 end
 end
 end)
--- FLY SPEED VARIABLE (this drives your fly movement)
-local flySpeed = 80
+local flyEnabled = false
+local flySpeed = 50
+local flyUpdateCooldown = 0
 
--- Right-click menu toggle
-local flyMenuOpen = false
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local plr = game:GetService("Players").LocalPlayer
+local cam = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
 
--- Slider menu frame
-local flySettings = Instance.new("Frame", screenGui)
-flySettings.Size = UDim2.new(0,260,0,120)
-flySettings.Position = UDim2.new(0.5,-130,0.45,-60)
-flySettings.BackgroundColor3 = Color3.fromRGB(40,0,60)
-flySettings.Visible = false
+local bodyVelocity = nil
+local bodyGyro = nil
 
--- Title
-local flyTitle = Instance.new("TextLabel", flySettings)
-flyTitle.Size = UDim2.new(1,0,0,28)
-flyTitle.BackgroundColor3 = Color3.fromRGB(70,0,110)
-flyTitle.Text = "Fly Speed"
-flyTitle.TextColor3 = Color3.new(1,1,1)
-flyTitle.Font = Enum.Font.SourceSansBold
-flyTitle.TextSize = 20
+local flyPopup = Instance.new("Frame")
+flyPopup.Size = UDim2.new(0, 260, 0, 150)
+flyPopup.Position = UDim2.new(0.5, -130, 0.5, -75)
+flyPopup.BackgroundColor3 = Color3.fromRGB(40, 0, 60)
+flyPopup.BorderSizePixel = 0
+flyPopup.Visible = false
+flyPopup.Active = true
+flyPopup.Draggable = true
+flyPopup.Parent = CoreGui
 
--- Slider background
-local sliderBack = Instance.new("Frame", flySettings)
-sliderBack.Size = UDim2.new(1,-40,0,6)
-sliderBack.Position = UDim2.new(0,20,0,55)
-sliderBack.BackgroundColor3 = Color3.fromRGB(25,0,35)
+local title = Instance.new("TextLabel", flyPopup)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundColor3 = Color3.fromRGB(70, 0, 110)
+title.Text = "Fly Speed"
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 22
+title.TextColor3 = Color3.new(1, 1, 1)
 
--- Slider handle
-local slider = Instance.new("Frame", sliderBack)
-slider.Size = UDim2.new(0.40,0,1,0)
-slider.BackgroundColor3 = Color3.fromRGB(200,0,255)
+local sliderBack = Instance.new("Frame", flyPopup)
+sliderBack.Size = UDim2.new(1, -30, 0, 10)
+sliderBack.Position = UDim2.new(0, 15, 0, 60)
+sliderBack.BackgroundColor3 = Color3.fromRGB(20, 0, 30)
 
--- dragging
-local sliderDrag = false
+local sliderFill = Instance.new("Frame", sliderBack)
+sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(200, 0, 255)
 
-slider.InputBegan:Connect(function(input)
+local doneBtn = Instance.new("TextButton", flyPopup)
+doneBtn.Size = UDim2.new(0, 120, 0, 40)
+doneBtn.Position = UDim2.new(0.5, -60, 1, -50)
+doneBtn.BackgroundColor3 = Color3.fromRGB(90, 0, 130)
+doneBtn.Text = "Done"
+doneBtn.TextColor3 = Color3.new(1, 1, 1)
+doneBtn.Font = Enum.Font.SourceSansBold
+doneBtn.TextSize = 20
+
+local sliding = false
+
+sliderBack.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		sliderDrag = true
+		sliding = true
 	end
 end)
 
 UIS.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		sliderDrag = false
+		sliding = false
 	end
 end)
 
--- Live dragging → updates flySpeed
-RS.RenderStepped:Connect(function()
-	if sliderDrag then
-		local posX = math.clamp(UIS:GetMouseLocation().X - sliderBack.AbsolutePosition.X,0,sliderBack.AbsoluteSize.X)
-		slider.Size = UDim2.new(posX/sliderBack.AbsoluteSize.X,0,1,0)
+UIS.InputChanged:Connect(function(input)
+	if sliding and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local rel = (input.Position.X - sliderBack.AbsolutePosition.X)
+		local scale = math.clamp(rel / sliderBack.AbsoluteSize.X, 0, 1)
 
-		-- FINAL SPEED (20–350 range)
-		flySpeed = math.floor((posX/sliderBack.AbsoluteSize.X) * 330) + 20
-	end
-
-	-- IF FLY IS ON → UPDATE VELOCITY
-	if flyEnabled and bodyVelocity and plr.Character then
-		local cf = cam.CFrame
-		local mv = Vector3.zero
-
-		if keysDown[Enum.KeyCode.W] then mv += cf.LookVector end
-		if keysDown[Enum.KeyCode.S] then mv -= cf.LookVector end
-		if keysDown[Enum.KeyCode.A] then mv -= cf.RightVector end
-		if keysDown[Enum.KeyCode.D] then mv += cf.RightVector end
-		if keysDown[Enum.KeyCode.Space] then mv += Vector3.yAxis end
-		if keysDown[Enum.KeyCode.LeftControl] then mv -= Vector3.yAxis end
-
-		if mv.Magnitude > 0 then
-			bodyVelocity.Velocity = mv.Unit * flySpeed
-		else
-			bodyVelocity.Velocity = Vector3.zero
-		end
+		sliderFill.Size = UDim2.new(scale, 0, 1, 0)
+		flySpeed = math.floor(scale * 300)
+		flyUpdateCooldown = tick() + 1
 	end
 end)
-
--- Done button
-local doneBtn = Instance.new("TextButton", flySettings)
-doneBtn.Size = UDim2.new(0,120,0,30)
-doneBtn.Position = UDim2.new(0.5,-60,1,-40)
-doneBtn.BackgroundColor3 = Color3.fromRGB(90,0,130)
-doneBtn.Text = "Done"
-doneBtn.TextColor3 = Color3.new(1,1,1)
-doneBtn.Font = Enum.Font.SourceSansBold
-doneBtn.TextSize = 20
 
 doneBtn.MouseButton1Click:Connect(function()
-	flyMenuOpen = false
-	flySettings.Visible = false
+	flyPopup.Visible = false
 end)
 
--- RIGHT CLICK FLY BUTTON TO OPEN SLIDER
-flyBtn.MouseButton2Click:Connect(function()
-	flyMenuOpen = not flyMenuOpen
-	flySettings.Visible = flyMenuOpen
+function ConnectFlyRightClick(button)
+	button.MouseButton2Click:Connect(function()
+		flyPopup.Visible = not flyPopup.Visible
+	end)
+end
+
+function ToggleFly()
+	flyEnabled = not flyEnabled
+
+	local char = plr.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	local hum = char:FindFirstChild("Humanoid")
+
+	if flyEnabled then
+		if hum then hum.PlatformStand = true end
+
+		bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+		bodyVelocity.Velocity = Vector3.zero
+		bodyVelocity.Parent = hrp
+
+		bodyGyro = Instance.new("BodyGyro")
+		bodyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+		bodyGyro.CFrame = cam.CFrame
+		bodyGyro.Parent = hrp
+	else
+		if hum then hum.PlatformStand = false end
+		if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+		if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+	end
+end
+
+RS.RenderStepped:Connect(function()
+	if not flyEnabled then return end
+	if not bodyVelocity or not bodyGyro then return end
+
+	local cf = cam.CFrame
+	local mv = Vector3.zero
+
+	local keys = UIS:GetKeysPressed()
+
+	for _, key in ipairs(keys) do
+		if key.KeyCode == Enum.KeyCode.W then mv += cf.LookVector end
+		if key.KeyCode == Enum.KeyCode.S then mv -= cf.LookVector end
+		if key.KeyCode == Enum.KeyCode.A then mv -= cf.RightVector end
+		if key.KeyCode == Enum.KeyCode.D then mv += cf.RightVector end
+		if key.KeyCode == Enum.KeyCode.Space then mv += Vector3.yAxis end
+		if key.KeyCode == Enum.KeyCode.LeftControl then mv -= Vector3.yAxis end
+	end
+
+	if mv.Magnitude > 0 then
+		bodyVelocity.Velocity = mv.Unit * flySpeed
+	else
+		bodyVelocity.Velocity = Vector3.zero
+	end
+
+	bodyGyro.CFrame = cf
 end)
